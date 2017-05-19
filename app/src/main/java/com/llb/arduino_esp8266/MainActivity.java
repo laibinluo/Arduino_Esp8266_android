@@ -1,20 +1,19 @@
 package com.llb.arduino_esp8266;
 
 import android.app.Activity;
+import android.content.Context;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
-import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.Snackbar;
-import android.support.v7.app.AppCompatActivity;
-import android.support.v7.view.menu.ExpandedMenuView;
-import android.support.v7.widget.Toolbar;
+
 import android.util.Log;
 import android.view.View;
-import android.view.Menu;
-import android.view.MenuItem;
+
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.BufferedReader;
@@ -22,6 +21,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 
@@ -35,6 +35,10 @@ public class MainActivity extends Activity {
     boolean  isConnet = true;
     MyThread myThread;
     int open = 1;
+    Button server;
+    public TextView  localhost;
+    public TextView  localport;
+    int port = 1234;
 
     public Handler myHandler = new Handler() {
         @Override
@@ -45,6 +49,8 @@ public class MainActivity extends Activity {
             }else if (msg.what == 2){
                 Toast.makeText(getApplicationContext(), "连接成功", Toast.LENGTH_LONG).show();
                 button.setText("断开");
+            }else if (msg.what == 3){
+
             }
         }
 
@@ -72,6 +78,20 @@ public class MainActivity extends Activity {
             }
         });
 
+        server = (Button) findViewById(R.id.server);
+        localhost = (TextView) findViewById(R.id.localhost);
+        localport = (TextView) findViewById(R.id.localport);
+
+        server.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                localhost.setText("IP: " + getlocalip());
+                localport.setText("port : " + port);
+                new ServerThread().start();
+
+            }
+        });
+
         button.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -95,6 +115,74 @@ public class MainActivity extends Activity {
     protected void onDestroy() {
         super.onDestroy();
         isConnet = false;
+    }
+
+    private String getlocalip(){
+        WifiManager wifiManager = (WifiManager)getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        WifiInfo wifiInfo = wifiManager.getConnectionInfo();
+        int ipAddress = wifiInfo.getIpAddress();
+        //  Log.d(Tag, "int ip "+ipAddress);
+        if(ipAddress==0)return null;
+        return ((ipAddress & 0xff)+"."+(ipAddress>>8 & 0xff)+"."
+                +(ipAddress>>16 & 0xff)+"."+(ipAddress>>24 & 0xff));
+    }
+
+    public class ServerThread extends Thread{
+        public int data;
+        public void run() {
+            Bundle bundle = new Bundle();
+            bundle.clear();
+            OutputStream output;
+            String str = "android connect success \n";
+            try {
+                ServerSocket serverSocket = new ServerSocket(port);
+                Message msg = new Message();
+                msg.what = 3;
+                try {
+                    Socket socket = serverSocket.accept();
+                    output = socket.getOutputStream();
+                    output.write(str.getBytes("gbk"));
+                    output.flush();
+                    //socket.shutdownOutput();
+                    //mHandler.sendEmptyMessage(0);
+//                    BufferedReader bff = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+//                    String line = null;
+//                    buffer = "";
+                    Log.d(TAG, "socket accept");
+                    while (isConnet) {
+                        //Log.d(TAG, "buf : " + line);
+//                        output.write(str.getBytes("gbk"));
+//                        output.flush();
+//                        socket.shutdownOutput();
+                        if (data != open ){
+                            data = open;
+                            Log.d(TAG, "data : " + data);
+                            output.write(String.valueOf(data).getBytes("gbk"));
+                            output.flush();
+                        }else {
+                            Log.d(TAG, "data = OPEN: " + data);
+                            try {
+                                Thread.sleep(500);
+                            }catch (Exception e){
+                                e.printStackTrace();
+                            }
+                        }
+                    }
+                    bundle.putString("msg", buffer.toString());
+                    msg.setData(bundle);
+                    myHandler.sendMessage(msg);
+
+                    output.close();
+                    socket.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
+            } catch (IOException e1) {
+                // TODO Auto-generated catch block
+                e1.printStackTrace();
+            }
+        };
     }
 
     class MyThread extends Thread {
@@ -133,7 +221,7 @@ public class MainActivity extends Activity {
 
                 //向服务器发送信息
                 ou.write("android connect ".getBytes("gbk"));
-                ou.flush();
+                //ou.flush();
                 while (isConnet){
                     if (socket.isConnected()){
                         Log.d(TAG, "SOCKET connect successed");
@@ -146,7 +234,7 @@ public class MainActivity extends Activity {
                         data = open;
                         Log.d(TAG, "data : " + data);
                         ou.write(String.valueOf(data).getBytes("gbk"));
-                        ou.flush();
+                        //ou.flush();
                     }else {
                         Log.d(TAG, "data = OPEN: " + data);
                         try {
