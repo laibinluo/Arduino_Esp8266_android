@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Arduino_Esp8266</string>
+    <string name="action_settings">Settings</string>
+</resources>
